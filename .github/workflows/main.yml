@@ -16,7 +16,7 @@ jobs:
         java-version: '17'
     - name: Unzip Project
       run: |
-        unzip MiAlmacenVentasGastos_Android_Source.zip -d .
+        unzip -o MiAlmacenVentasGastos_Android_Source.zip -d .
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
     - name: Build with Gradle
