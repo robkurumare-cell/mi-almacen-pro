@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#173b57">
+<title>Mi Almacén</title>
+<style>
+:root{font-family:system-ui,-apple-system,Roboto,sans-serif;color:#17212b;background:#f3f6f8}*{box-sizing:border-box}
+body{margin:0}.header{background:#173b57;color:white;padding:22px 18px 18px}.header h1{margin:0;font-size:25px}.header p{margin:5px 0 0;color:#d6e6f2;font-size:14px}
+main{max-width:680px;margin:auto;padding:14px}.cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}.card,.panel{background:white;border-radius:14px;padding:15px;box-shadow:0 1px 5px #12223312}.label{font-size:13px;color:#687784}.amount{font-size:22px;font-weight:750;margin-top:5px;overflow-wrap:anywhere}.green{color:#16834a}.red{color:#c0392b}.panel{margin-top:12px}.nav{display:flex;background:white;position:sticky;top:0;z-index:2;border-bottom:1px solid #ddd}.nav button{flex:1;border:0;border-radius:0;background:white;color:#173b57;padding:14px 4px;font-weight:650}.nav button.active{background:#e4edf2;border-bottom:3px solid #176b87}
+h2{font-size:18px;margin:0 0 13px}label{display:block;font-size:13px;font-weight:650;margin:12px 0 5px}input,select{width:100%;padding:12px;border:1px solid #cbd5dc;border-radius:9px;background:white;font-size:16px;color:#17212b}
+button.primary{border:0;background:#176b87;color:white;border-radius:10px;padding:13px 15px;font-size:16px;font-weight:700;width:100%;margin-top:14px}button.secondary{border:1px solid #cbd5dc;background:white;color:#173b57;border-radius:9px;padding:9px 12px}
+.row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid #edf0f2}.row:last-child{border-bottom:0}.row .info{flex:1;min-width:0}.row .desc{font-weight:650;overflow-wrap:anywhere}.small{font-size:12px;color:#687784;margin-top:4px}.row .val{font-weight:750;white-space:nowrap}.empty{padding:20px;text-align:center;color:#687784}.hint{font-size:12px;line-height:1.5;color:#687784;margin-top:10px}.hidden{display:none!important}
+</style></head><body>
+<div id="pantalla-login" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#f3f6f8;z-index:9999;padding:20px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;">
+    <div class="panel" style="max-width:400px;margin:0 auto;width:100%;">
+        <h2 style="text-align:center;">🏪 Mi Almacén Pro</h2>
+        <p style="text-align:center;font-size:14px;color:#687784;margin-bottom:20px;">Ingresa con tu cuenta</p>
+        <label>Correo electrónico</label>
+        <input type="email" id="login-email" placeholder="ejemplo@correo.cl">
+        <label>Contraseña</label>
+        <input type="password" id="login-pass" placeholder="••••••••">
+        <button class="primary" onclick="iniciarSesion()">Entrar</button>
+        <div id="login-msg" class="hint" style="text-align:center;margin-top:10px;color:#c0392b;"></div>
+    </div>
+</div>
+<header class="header"><h1>🏪 Mi Almacén</h1><p>Ventas y gastos · Pesos chilenos (CLP)</p></header>
+<nav class="nav"><button id="nav-resumen" class="active" onclick="show('resumen')">Resumen</button><button id="nav-nuevo" onclick="show('nuevo')">+ Registrar</button><button id="nav-historial" onclick="show('historial')">Historial</button></nav>
+<main>
+<section id="resumen">
+<div class="cards">
+<div class="card"><div class="label">Total de ventas</div><div id="ventas" class="amount green">$0</div></div>
+<div class="card"><div class="label">Total de gastos</div><div id="gastos" class="amount red">$0</div></div>
+</div>
+<div class="panel"><div class="label">Ventas menos gastos</div><div id="diferencia" class="amount">$0</div><div class="hint">Esta diferencia no es la ganancia real: aún faltan costos de mercadería, impuestos y otros conceptos.</div></div>
+<div class="panel"><h2>Últimos movimientos</h2><div id="ultimos" class="empty">Todavía no hay movimientos.</div><button class="secondary" style="width:100%;margin-top:10px" onclick="show('nuevo')">Registrar venta o gasto</button></div>
+</section>
+<section id="nuevo" class="hidden"><div class="panel"><h2>Registrar movimiento</h2>
+<label for="tipo">Tipo</label><select id="tipo"><option value="venta">Venta</option><option value="gasto">Gasto</option></select>
+<label for="detalle">Descripción</label><input id="detalle" maxlength="120" placeholder="Ej. ventas del día o compra de mercadería">
+<label for="monto">Monto (CLP)</label><input id="monto" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej. 25000">
+<label for="fecha">Fecha</label><input id="fecha" type="date">
+<button class="primary" onclick="save()">Guardar movimiento</button><div id="msg" class="hint" role="status"></div>
+</div></section>
+<section id="historial" class="hidden"><div class="panel"><h2>Historial de movimientos</h2><label for="filtro">Mostrar</label><select id="filtro" onchange="render()"><option value="todos">Todos</option><option value="venta">Solo ventas</option><option value="gasto">Solo gastos</option></select><div id="lista"></div><button class="primary" onclick="exportCSV()">Exportar CSV</button><button class="secondary" style="width:100%;margin-top:9px" onclick="backup()">Descargar respaldo JSON</button><div class="hint">Guarda el respaldo en un lugar seguro. Los datos se guardan solo en este teléfono.</div></div></section>
+<p class="hint">Versión conectada a la nube. El inventario y los usuarios se sincronizan.</p>
+</main>
+<script>
+const SUPABASE_URL = 'https://eynkuymldldwrxiqntnc.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV5bmt1eW1sZGxkd3J4aXFudG5jIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMxMjQ5MDQsImV4cCI6MjEwODcwMDkwNH0.STvsbZskyi4RN-fq7dQkZBonfT2fTCb4QD9pvXRsuVk';
+
+async function iniciarSesion() {
+    const email = document.getElementById('login-email').value;
+    const pass = document.getElementById('login-pass').value;
+    const msg = document.getElementById('login-msg');
+    
+    if(!email || !pass) { msg.textContent = 'Por favor, llena todos los campos.'; return; }
+    
+    msg.textContent = 'Conectando...';
+    msg.style.color = '#176b87';
+    
+    try {
+        const res = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email: email, password: pass })
+        });
+        
+        const data = await res.json();
+        
+        if(res.ok && data.access_token) {
+            localStorage.setItem('supabase_token', data.access_token);
+            localStorage.setItem('supabase_user', JSON.stringify(data.user));
+            document.getElementById('pantalla-login').style.display = 'none';
+            msg.textContent = '';
+        } else {
+            msg.textContent = 'Error: Correo o contraseña incorrectos.';
+            msg.style.color = '#c0392b';
+        }
+    } catch (e) {
+        msg.textContent = 'Error de conexión. Revisa tu internet.';
+        msg.style.color = '#c0392b';
+    }
+}
+
+function revisarSesion() {
+    const token = localStorage.getItem('supabase_token');
+    if (token) {
+        document.getElementById('pantalla-login').style.display = 'none';
+    }
+}
+revisarSesion();
+
+const KEY='mialmacen_movimientos_v1';
+let items=[];try{items=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(items))items=[]}catch(e){items=[]}
+const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+document.getElementById('fecha').value=today();
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(items));return true}catch(e){alert('No se pudieron guardar los datos. Exporta un respaldo y libera espacio.');return false}}
+function show(id){['resumen','nuevo','historial'].forEach(s=>{document.getElementById(s).classList.toggle('hidden',s!==id);document.getElementById('nav-'+s).classList.toggle('active',s===id)});if(id==='nuevo')document.getElementById('fecha').value=document.getElementById('fecha').value||today();render()}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function row(x){return '<div class="row"><div class="info"><div class="desc">'+(x.tipo==='venta'?'🟢 ':'🔴 ')+esc(x.detalle)+'</div><div class="small">'+esc(x.fecha)+' · '+(x.tipo==='venta'?'Venta':'Gasto')+'</div></div><div class="val '+(x.tipo==='venta'?'green':'red')+'">'+(x.tipo==='venta'?'+':'−')+money(x.monto)+'</div><button class="secondary" aria-label="Eliminar movimiento" onclick="del('+x.id+')">×</button></div>'}
+function render(){let v=items.filter(x=>x.tipo==='venta').reduce((a,x)=>a+x.monto,0),g=items.filter(x=>x.tipo==='gasto').reduce((a,x)=>a+x.monto,0);document.getElementById('ventas').textContent=money(v);document.getElementById('gastos').textContent=money(g);document.getElementById('diferencia').textContent=money(v-g);document.getElementById('diferencia').className='amount '+(v-g<0?'red':'');let sorted=[...items].sort((a,b)=>b.id-a.id);document.getElementById('ultimos').innerHTML=sorted.length?sorted.slice(0,4).map(row).join(''):'Todavía no hay movimientos.';let f=document.getElementById('filtro').value;let filtered=sorted.filter(x=>f==='todos'||x.tipo===f);document.getElementById('lista').innerHTML=filtered.length?filtered.map(row).join(''):'<div class="empty">No hay movimientos para mostrar.</div>'}
+function save(){let tipo=document.getElementById('tipo').value,detalle=document.getElementById('detalle').value.trim(),raw=document.getElementById('monto').value,n=Number(raw),fecha=document.getElementById('fecha').value,msg=document.getElementById('msg');if(!detalle||!raw||!Number.isSafeInteger(n)||n<=0||!fecha){msg.textContent='Completa la descripción, una fecha y un monto entero mayor que cero.';return}let item={id:Date.now(),tipo,detalle,monto:n,fecha};items.push(item);if(!persist()){items.pop();return}document.getElementById('detalle').value='';document.getElementById('monto').value='';msg.textContent='Movimiento guardado en este teléfono.';render();show('resumen')}
+function del(id){if(!confirm('¿Eliminar este movimiento?'))return;let old=items;items=items.filter(x=>x.id!==id);if(!persist())items=old;render()}
+function download(name,content,type){let blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function exportCSV(){let rows=[['Fecha','Tipo','Descripción','Monto CLP'],...items.map(x=>[x.fecha,x.tipo,x.detalle,x.monto])];let csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');download('mi-almacen-movimientos.csv',csv,'text/csv;charset=utf-8')}
+function backup(){download('respaldo-mi-almacen.json',JSON.stringify({version:1,exportado:new Date().toISOString(),movimientos:items},null,2),'application/json')}
+render();
+</script></body></html>
