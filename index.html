@@ -68,12 +68,25 @@ async function iniciarSesion() {
             },
             body: JSON.stringify({ email: email, password: pass })
         });
-        
+
         const data = await res.json();
         
         if(res.ok && data.access_token) {
             localStorage.setItem('supabase_token', data.access_token);
             localStorage.setItem('supabase_user', JSON.stringify(data.user));
+            // Obtener el rol del usuario desde la tabla de perfiles
+const perfilRes = await fetch(SUPABASE_URL + '/rest/v1/perfiles?select=rol&id=eq.' + data.user.id, {
+    headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + data.access_token
+    }
+});
+const perfilData = await perfilRes.json();
+if(perfilData && perfilData.length > 0) {
+    localStorage.setItem('supabase_rol', perfilData[0].rol);
+} else {
+    localStorage.setItem('supabase_rol', 'empleado'); // Por defecto
+}
             document.getElementById('pantalla-login').style.display = 'none';
             msg.textContent = '';
         } else {
