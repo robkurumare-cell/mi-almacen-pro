@@ -117,7 +117,60 @@ function show(id){['resumen','nuevo','historial'].forEach(s=>{document.getElemen
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function row(x){return '<div class="row"><div class="info"><div class="desc">'+(x.tipo==='venta'?'🟢 ':'🔴 ')+esc(x.detalle)+'</div><div class="small">'+esc(x.fecha)+' · '+(x.tipo==='venta'?'Venta':'Gasto')+'</div></div><div class="val '+(x.tipo==='venta'?'green':'red')+'">'+(x.tipo==='venta'?'+':'−')+money(x.monto)+'</div><button class="secondary" aria-label="Eliminar movimiento" onclick="del('+x.id+')">×</button></div>'}
 function render(){let v=items.filter(x=>x.tipo==='venta').reduce((a,x)=>a+x.monto,0),g=items.filter(x=>x.tipo==='gasto').reduce((a,x)=>a+x.monto,0);document.getElementById('ventas').textContent=money(v);document.getElementById('gastos').textContent=money(g);document.getElementById('diferencia').textContent=money(v-g);document.getElementById('diferencia').className='amount '+(v-g<0?'red':'');let sorted=[...items].sort((a,b)=>b.id-a.id);document.getElementById('ultimos').innerHTML=sorted.length?sorted.slice(0,4).map(row).join(''):'Todavía no hay movimientos.';let f=document.getElementById('filtro').value;let filtered=sorted.filter(x=>f==='todos'||x.tipo===f);document.getElementById('lista').innerHTML=filtered.length?filtered.map(row).join(''):'<div class="empty">No hay movimientos para mostrar.</div>'}
-function save(){let tipo=document.getElementById('tipo').value,detalle=document.getElementById('detalle').value.trim(),raw=document.getElementById('monto').value,n=Number(raw),fecha=document.getElementById('fecha').value,msg=document.getElementById('msg');if(!detalle||!raw||!Number.isSafeInteger(n)||n<=0||!fecha){msg.textContent='Completa la descripción, una fecha y un monto entero mayor que cero.';return}let item={id:Date.now(),tipo,detalle,monto:n,fecha};items.push(item);if(!persist()){items.pop();return}document.getElementById('detalle').value='';document.getElementById('monto').value='';msg.textContent='Movimiento guardado en este teléfono.';render();show('resumen')}
+async function save(){
+    let tipo=document.getElementById('tipo').value,
+        detalle=document.getElementById('detalle').value.trim(),
+        raw=document.getElementById('monto').value,
+        n=Number(raw),
+        fecha=document.getElementById('fecha').value,
+        msg=document.getElementById('msg');
+
+    if(!detalle||!raw||!Number.isSafeInteger(n)||n<=0||!fecha){
+        msg.textContent='Completa la descripción, una fecha y un monto entero mayor que cero.';
+        return;
+    }
+
+    const token = localStorage.getItem('supabase_token');
+    if(!token) {
+        msg.textContent = 'Error: No hay sesión activa.';
+        return;
+    }
+
+    msg.textContent = 'Guardando en la nube...';
+
+    try {
+        const tabla = tipo === 'venta' ? 'ventas' : 'gastos';
+        const body = tipo === 'venta' 
+            ? { total_clp: n, notas: detalle, fecha: fecha, usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id }
+            : { monto_clp: n, descripcion: detalle, fecha: fecha, usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id };
+
+        const res = await fetch(SUPABASE_URL + '/rest/v1/' + tabla, {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (res.ok) {
+            msg.textContent = 'Movimiento guardado en la nube.';
+            document.getElementById('detalle').value = '';
+            document.getElementById('monto').value = '';
+            // Recargar la página para traer los datos nuevos (luego mejoraremos esto)
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            const errorData = await res.json();
+            msg.textContent = 'Error al guardar: ' + (errorData.message || 'Revisa la consola.');
+            console.error(errorData);
+        }
+    } catch (e) {
+        msg.textContent = 'Error de conexión. Revisa tu internet.';
+        console.error(e);
+    }
+}
 function del(id){if(!confirm('¿Eliminar este movimiento?'))return;let old=items;items=items.filter(x=>x.id!==id);if(!persist())items=old;render()}
 function download(name,content,type){let blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
 function exportCSV(){let rows=[['Fecha','Tipo','Descripción','Monto CLP'],...items.map(x=>[x.fecha,x.tipo,x.detalle,x.monto])];let csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');download('mi-almacen-movimientos.csv',csv,'text/csv;charset=utf-8')}
