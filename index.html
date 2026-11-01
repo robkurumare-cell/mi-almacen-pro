@@ -141,9 +141,8 @@ async function save(){
     try {
         const tabla = tipo === 'venta' ? 'ventas' : 'gastos';
         const body = tipo === 'venta' 
-            ? { total_clp: n, notas: detalle, fecha: fecha, usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id }
+            ? { total_clp: n, notas: detalle, fecha: fecha, forma_pago:'efectivo',usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id }
             : { monto_clp: n, descripcion: detalle, fecha: fecha, usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id };
-
         const res = await fetch(SUPABASE_URL + '/rest/v1/' + tabla, {
             method: 'POST',
             headers: {
