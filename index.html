@@ -107,72 +107,79 @@ function revisarSesion() {
 }
 revisarSesion();
 
-const KEY='mialmacen_movimientos_v1';
-let items=[];try{items=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(items))items=[]}catch(e){items=[]}
-const money=n=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
-const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
-document.getElementById('fecha').value=today();
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(items));return true}catch(e){alert('No se pudieron guardar los datos. Exporta un respaldo y libera espacio.');return false}}
-function show(id){['resumen','nuevo','historial'].forEach(s=>{document.getElementById(s).classList.toggle('hidden',s!==id);document.getElementById('nav-'+s).classList.toggle('active',s===id)});if(id==='nuevo')document.getElementById('fecha').value=document.getElementById('fecha').value||today();render()}
-function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function row(x){return '<div class="row"><div class="info"><div class="desc">'+(x.tipo==='venta'?'🟢 ':'🔴 ')+esc(x.detalle)+'</div><div class="small">'+esc(x.fecha)+' · '+(x.tipo==='venta'?'Venta':'Gasto')+'</div></div><div class="val '+(x.tipo==='venta'?'green':'red')+'">'+(x.tipo==='venta'?'+':'−')+money(x.monto)+'</div><button class="secondary" aria-label="Eliminar movimiento" onclick="del('+x.id+')">×</button></div>'}
-function render(){let v=items.filter(x=>x.tipo==='venta').reduce((a,x)=>a+x.monto,0),g=items.filter(x=>x.tipo==='gasto').reduce((a,x)=>a+x.monto,0);document.getElementById('ventas').textContent=money(v);document.getElementById('gastos').textContent=money(g);document.getElementById('diferencia').textContent=money(v-g);document.getElementById('diferencia').className='amount '+(v-g<0?'red':'');let sorted=[...items].sort((a,b)=>b.id-a.id);document.getElementById('ultimos').innerHTML=sorted.length?sorted.slice(0,4).map(row).join(''):'Todavía no hay movimientos.';let f=document.getElementById('filtro').value;let filtered=sorted.filter(x=>f==='todos'||x.tipo===f);document.getElementById('lista').innerHTML=filtered.length?filtered.map(row).join(''):'<div class="empty">No hay movimientos para mostrar.</div>'}
-async function save(){
-    let tipo=document.getElementById('tipo').value,
-        detalle=document.getElementById('detalle').value.trim(),
-        raw=document.getElementById('monto').value,
-        n=Number(raw),
-        fecha=document.getElementById('fecha').value,
-        msg=document.getElementById('msg');
 
-    if(!detalle||!raw||!Number.isSafeInteger(n)||n<=0||!fecha){
-        msg.textContent='Completa la descripción, una fecha y un monto entero mayor que cero.';
-        return;
-    }
+ --- LÓGICA CONECTADA A SUPABASE ---
+let items = [];
 
+const money = n => new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(n);
+const today = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+document.getElementById('fecha').value = today();
+
+function show(id) {
+    ['resumen','nuevo','historial'].forEach(s => {
+        document.getElementById(s).classList.toggle('hidden', s !== id);
+        document.getElementById('nav-'+s).classList.toggle('active', s === id);
+    });
+    if(id === 'nuevo') document.getElementById('fecha').value = document.getElementById('fecha').value || today();
+    cargarDatosNube();
+}
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function row(x) {
+    let fecha = x.fecha || today();
+    let detalle = x.notas || x.descripcion || 'Sin descripción';
+    let monto = x.total_clp || x.monto_clp || 0;
+    let tipo = x.total_clp !== undefined ? 'venta' : 'gasto';
+    
+    return '<div class="row"><div class="info"><div class="desc">'+(tipo==='venta'?'🟢 ':'🔴 ')+esc(detalle)+'</div><div class="small">'+esc(fecha)+' · '+(tipo==='venta'?'Venta':'Gasto')+'</div></div><div class="val '+(tipo==='venta'?'green':'red')+'">'+(tipo==='venta'?'+':'−')+money(monto)+'</div></div>';
+}
+
+async function cargarDatosNube() {
     const token = localStorage.getItem('supabase_token');
-    if(!token) {
-        msg.textContent = 'Error: No hay sesión activa.';
-        return;
-    }
-
-    msg.textContent = 'Guardando en la nube...';
+    if (!token) return;
 
     try {
-        const tabla = tipo === 'venta' ? 'ventas' : 'gastos';
-        const body = tipo === 'venta' 
-            ? { total_clp: n, notas: detalle, fecha: fecha, forma_pago:'efectivo',usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id }
-            : { monto_clp: n, descripcion: detalle, fecha: fecha, usuario_id: JSON.parse(localStorage.getItem('supabase_user')).id };
-        const res = await fetch(SUPABASE_URL + '/rest/v1/' + tabla, {
-            method: 'POST',
-            headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': 'Bearer ' + token,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify(body)
+        // Cargar ventas
+        const resVentas = await fetch(SUPABASE_URL + '/rest/v1/ventas?select=*&order=fecha.desc', {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token }
         });
+        const ventas = await resVentas.json();
 
-        if (res.ok) {
-            msg.textContent = 'Movimiento guardado en la nube.';
-            document.getElementById('detalle').value = '';
-            document.getElementById('monto').value = '';
-            // Recargar la página para traer los datos nuevos (luego mejoraremos esto)
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            const errorData = await res.json();
-            msg.textContent = 'Error al guardar: ' + (errorData.message || 'Revisa la consola.');
-            console.error(errorData);
-        }
+        // Cargar gastos
+        const resGastos = await fetch(SUPABASE_URL + '/rest/v1/gastos?select=*&order=fecha.desc', {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token }
+        });
+        const gastos = await resGastos.json();
+
+        // Unir y ordenar
+        items = [...ventas, ...gastos].sort((a,b) => new Date(b.creado_en) - new Date(a.creado_en));
+        
+        render();
     } catch (e) {
-        msg.textContent = 'Error de conexión. Revisa tu internet.';
-        console.error(e);
+        console.error('Error cargando datos:', e);
     }
 }
-function del(id){if(!confirm('¿Eliminar este movimiento?'))return;let old=items;items=items.filter(x=>x.id!==id);if(!persist())items=old;render()}
-function download(name,content,type){let blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-function exportCSV(){let rows=[['Fecha','Tipo','Descripción','Monto CLP'],...items.map(x=>[x.fecha,x.tipo,x.detalle,x.monto])];let csv='\ufeff'+rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');download('mi-almacen-movimientos.csv',csv,'text/csv;charset=utf-8')}
-function backup(){download('respaldo-mi-almacen.json',JSON.stringify({version:1,exportado:new Date().toISOString(),movimientos:items},null,2),'application/json')}
-render();
-</script></body></html>
+
+function render() {
+    let v = items.filter(x => x.total_clp !== undefined).reduce((a,x) => a + x.total_clp, 0);
+    let g = items.filter(x => x.monto_clp !== undefined).reduce((a,x) => a + x.monto_clp, 0);
+    
+    document.getElementById('ventas').textContent = money(v);
+    document.getElementById('gastos').textContent = money(g);
+    document.getElementById('diferencia').textContent = money(v - g);
+    document.getElementById('diferencia').className = 'amount ' + (v - g < 0 ? 'red' : '');
+    
+    let ultimos = items.slice(0, 4);
+    document.getElementById('ultimos').innerHTML = ultimos.length ? ultimos.map(row).join('') : 'Todavía no hay movimientos.';
+    
+    let f = document.getElementById('filtro').value;
+    let filtrados = items.filter(x => {
+        if (f === 'todos') return true;
+        if (f === 'venta') return x.total_clp !== undefined;
+        if (f === 'gasto') return x.monto_clp !== undefined;
+        return true;
+    });
+    
+
+    </script></body></html/>
