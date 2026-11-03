@@ -35,38 +35,53 @@ button.primary{border:0;background:#176b87;color:white;border-radius:10px;paddin
     <button id="nav-historial" onclick="show('historial')">Historial</button>
     <button id="nav-inventario" onclick="show('inventario')">Inventario</button>
 </nav>
-<section id="resumen">
-<div class="cards">
-<div class="card"><div class="label">Total de ventas</div><div id="ventas" class="amount green">$0</div></div>
-<div class="card"><div class="label">Total de gastos</div><div id="gastos" class="amount red">$0</div></div>
-</div>
-<div class="panel"><div class="label">Ventas menos gastos</div><div id="diferencia" class="amount">$0</div><div class="hint">Esta diferencia no es la ganancia real: aún faltan costos de mercadería, impuestos y otros conceptos.</div></div>
-<div class="panel"><h2>Últimos movimientos</h2><div id="ultimos" class="empty">Todavía no hay movimientos.</div><button class="secondary" style="width:100%;margin-top:10px" onclick="show('nuevo')">Registrar venta o gasto</button></div>
-</section>
-<section id="nuevo" class="hidden"><div class="panel"><h2>Registrar movimiento</h2>
-<label for="tipo">Tipo</label><select id="tipo"><option value="venta">Venta</option><option value="gasto">Gasto</option></select>
-<label for="detalle">Descripción</label><input id="detalle" maxlength="120" placeholder="Ej. ventas del día o compra de mercadería">
-<label for="monto">Monto (CLP)</label><input id="monto" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej. 25000">
+<main>
+    <section id="resumen">
+        <div class="cards">
+            <div class="card"><div class="label">Total de ventas</div><div id="ventas" class="amount green">$0</div></div>
+            <div class="card"><div class="label">Total de gastos</div><div id="gastos" class="amount red">$0</div></div>
+        </div>
+        <div class="panel"><div class="label">Ventas menos gastos</div><div id="diferencia" class="amount">$0</div><div class="hint">Esta diferencia no es la ganancia real: aún faltan costos de mercadería, impuestos y otros conceptos.</div></div>
+        <div class="panel"><h2>Últimos movimientos</h2><div id="ultimos" class="empty">Todavía no hay movimientos.</div><button class="secondary" style="width:100%;margin-top:10px" onclick="show('nuevo')">Registrar venta o gasto</button></div>
+    </section>
+
+    <section id="nuevo" class="hidden">
+        <div class="panel"><h2>Registrar movimiento</h2>
+            <label for="tipo">Tipo</label><select id="tipo"><option value="venta">Venta</option><option value="gasto">Gasto</option></select>
+            <label for="detalle">Descripción</label><input id="detalle" maxlength="120" placeholder="Ej. ventas del día o compra de mercadería">
+            <label for="monto">Monto (CLP)</label><input id="monto" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej. 25000">
+            <label for="fecha">Fecha</label><input id="fecha" type="date">
+            <button class="primary" onclick="save()">Guardar movimiento</button><div id="msg" class="hint" role="status"></div>
+        </div>
+    </section>
+
+    <section id="historial" class="hidden">
+        <div class="panel"><h2>Historial de movimientos</h2>
+            <label for="filtro">Mostrar</label><select id="filtro" onchange="render()"><option value="todos">Todos</option><option value="venta">Solo ventas</option><option value="gasto">Solo gastos</option></select>
+            <div id="lista"></div>
+            <button class="primary" onclick="exportCSV()">Exportar CSV</button>
+            <button class="secondary" style="width:100%;margin-top:9px" onclick="backup()">Descargar respaldo JSON</button>
+            <div class="hint">Guarda el respaldo en un lugar seguro. Los datos se guardan en la nube.</div>
+        </div>
+    </section>
+
     <section id="inventario" class="hidden">
-    <div class="panel">
-        <h2>Inventario de Productos</h2>
-        <label for="prod-nombre">Nombre del producto</label>
-        <input id="prod-nombre" placeholder="Ej. Bebida 1.5L">
-        <label for="prod-precio">Precio de venta (CLP)</label>
-        <input id="prod-precio" type="number" min="1" placeholder="Ej. 1500">
-        <label for="prod-stock">Stock inicial</label>
-        <input id="prod-stock" type="number" min="0" placeholder="Ej. 10">
-        <button class="primary" onclick="guardarProducto()">Guardar Producto</button>
-        <div id="prod-msg" class="hint" style="text-align:center; margin-top:10px;"></div>
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
-        <div id="lista-productos"></div>
-    </div>
-</section>
-<label for="fecha">Fecha</label><input id="fecha" type="date">
-<button class="primary" onclick="save()">Guardar movimiento</button><div id="msg" class="hint" role="status"></div>
-</div></section>
-<section id="historial" class="hidden"><div class="panel"><h2>Historial de movimientos</h2><label for="filtro">Mostrar</label><select id="filtro" onchange="render()"><option value="todos">Todos</option><option value="venta">Solo ventas</option><option value="gasto">Solo gastos</option></select><div id="lista"></div><button class="primary" onclick="exportCSV()">Exportar CSV</button><button class="secondary" style="width:100%;margin-top:9px" onclick="backup()">Descargar respaldo JSON</button><div class="hint">Guarda el respaldo en un lugar seguro. Los datos se guardan en la nube.</div></div></section>
-<p class="hint">Versión conectada a la nube. El inventario y los usuarios se sincronizan.</p>
+        <div class="panel">
+            <h2>Inventario de Productos</h2>
+            <label for="prod-nombre">Nombre del producto</label>
+            <input id="prod-nombre" placeholder="Ej. Bebida 1.5L">
+            <label for="prod-precio">Precio de venta (CLP)</label>
+            <input id="prod-precio" type="number" min="1" placeholder="Ej. 1500">
+            <label for="prod-stock">Stock inicial</label>
+            <input id="prod-stock" type="number" min="0" placeholder="Ej. 10">
+            <button class="primary" onclick="guardarProducto()">Guardar Producto</button>
+            <div id="prod-msg" class="hint" style="text-align:center; margin-top:10px;"></div>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+            <div id="lista-productos"></div>
+        </div>
+    </section>
+
+    <p class="hint">Versión conectada a la nube. El inventario y los usuarios se sincronizan.</p>
 </main>
 <script>
 const SUPABASE_URL = 'https://eynkuymldldwrxiqntnc.supabase.co';
