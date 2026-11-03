@@ -24,7 +24,7 @@ button.primary{border:0;background:#176b87;color:white;border-radius:10px;paddin
         <div id="login-msg" class="hint" style="text-align:center;margin-top:10px;color:#c0392b;"></div>
     </div>
 </div>
-<header class="header"><h1>🏪 Mi Almacén</h1><p>Ventas y gastos · Pesos chilenos (CLP)</p></header>
+<header class="header"><h1>🏪 Mi Almacén</h1><p>Ventas y gastos · Pesos chilenos (CLP)</p></<button id="btn-cerrar-sesion" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.2); border:none; color:white; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:12px;" onclick="cerrarSesion()">Salir</button>header>
 <nav class="nav"><button id="nav-resumen" class="active" onclick="show('resumen')">Resumen</button><button id="nav-nuevo" onclick="show('nuevo')">+ Registrar</button><button id="nav-historial" onclick="show('historial')">Historial</button></nav>
 <main>
 <section id="resumen">
@@ -197,4 +197,12 @@ function exportCSV(){
 }
 function backup(){download('respaldo-mi-almacen.json',JSON.stringify({version:2,exportado:new Date().toISOString(),movimientos:items},null,2),'application/json')}
 
-</script></body></html>
+function cerrarSesion() {
+    // Borramos los datos de sesión guardados
+    localStorage.removeItem('supabase_token');
+    localStorage.removeItem('supabase_user');
+    localStorage.removeItem('supabase_rol');
+    
+    // Recargamos la página para que vuelva a pedir el login
+    window.location.reload();
+}</script></body></html>
