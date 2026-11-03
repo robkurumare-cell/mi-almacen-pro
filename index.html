@@ -29,8 +29,12 @@ button.primary{border:0;background:#176b87;color:white;border-radius:10px;paddin
     <p>Ventas y gastos · Pesos chilenos (CLP)</p>
     <button onclick="cerrarSesion()" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.2); border:none; color:white; padding:8px 12px; border-radius:6px; cursor:pointer; font-size:14px; font-weight:bold;">Salir</button>
 </header>
-<nav class="nav"><button id="nav-resumen" class="active" onclick="show('resumen')">Resumen</button><button id="nav-nuevo" onclick="show('nuevo')">+ Registrar</button><button id="nav-historial" onclick="show('historial')">Historial</button></nav>
-<main>
+<nav class="nav">
+    <button id="nav-resumen" class="active" onclick="show('resumen')">Resumen</button>
+    <button id="nav-nuevo" onclick="show('nuevo')">+ Registrar</button>
+    <button id="nav-historial" onclick="show('historial')">Historial</button>
+    <button id="nav-inventario" onclick="show('inventario')">Inventario</button>
+</nav>
 <section id="resumen">
 <div class="cards">
 <div class="card"><div class="label">Total de ventas</div><div id="ventas" class="amount green">$0</div></div>
@@ -43,6 +47,21 @@ button.primary{border:0;background:#176b87;color:white;border-radius:10px;paddin
 <label for="tipo">Tipo</label><select id="tipo"><option value="venta">Venta</option><option value="gasto">Gasto</option></select>
 <label for="detalle">Descripción</label><input id="detalle" maxlength="120" placeholder="Ej. ventas del día o compra de mercadería">
 <label for="monto">Monto (CLP)</label><input id="monto" type="number" min="1" step="1" inputmode="numeric" placeholder="Ej. 25000">
+    <section id="inventario" class="hidden">
+    <div class="panel">
+        <h2>Inventario de Productos</h2>
+        <label for="prod-nombre">Nombre del producto</label>
+        <input id="prod-nombre" placeholder="Ej. Bebida 1.5L">
+        <label for="prod-precio">Precio de venta (CLP)</label>
+        <input id="prod-precio" type="number" min="1" placeholder="Ej. 1500">
+        <label for="prod-stock">Stock inicial</label>
+        <input id="prod-stock" type="number" min="0" placeholder="Ej. 10">
+        <button class="primary" onclick="guardarProducto()">Guardar Producto</button>
+        <div id="prod-msg" class="hint" style="text-align:center; margin-top:10px;"></div>
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+        <div id="lista-productos"></div>
+    </div>
+</section>
 <label for="fecha">Fecha</label><input id="fecha" type="date">
 <button class="primary" onclick="save()">Guardar movimiento</button><div id="msg" class="hint" role="status"></div>
 </div></section>
@@ -102,11 +121,12 @@ const today = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.ge
 document.getElementById('fecha').value = today();
 
 function show(id) {
-    ['resumen','nuevo','historial'].forEach(s => {
+    ['resumen','nuevo','historial','inventario'].forEach(s => {
         document.getElementById(s).classList.toggle('hidden', s !== id);
         document.getElementById('nav-'+s).classList.toggle('active', s === id);
     });
     if(id === 'nuevo') document.getElementById('fecha').value = document.getElementById('fecha').value || today();
+    if(id === 'inventario') cargarProductos();
     cargarDatosNube();
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -209,4 +229,77 @@ function cerrarSesion() {
     
     // Recargamos la página para que vuelva a pedir el login
     window.location.reload();
+}async function cargarProductos() {
+    const token = localStorage.getItem('supabase_token');
+    if (!token) return;
+    try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/productos?select=*&order=nombre.asc', {
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + token }
+        });
+        const productos = await res.json();
+        const lista = document.getElementById('lista-productos');
+        if (productos.length === 0) {
+            lista.innerHTML = '<div class="empty">No hay productos registrados.</div>';
+            return;
+        }
+        lista.innerHTML = productos.map(p => `
+            <div class="row">
+                <div class="info">
+                    <div class="desc">${esc(p.nombre)}</div>
+                    <div class="small">Stock: ${p.stock} | Precio: ${money(p.precio_venta_clp)}</div>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error('Error cargando productos', e);
+    }
+}
+
+async function guardarProducto() {
+    const nombre = document.getElementById('prod-nombre').value.trim();
+    const precio = Number(document.getElementById('prod-precio').value);
+    const stock = Number(document.getElementById('prod-stock').value);
+    const msg = document.getElementById('prod-msg');
+
+    if (!nombre || precio <= 0 || stock < 0) {
+        msg.textContent = 'Completa todos los campos correctamente.';
+        msg.style.color = 'red';
+        return;
+    }
+
+    const token = localStorage.getItem('supabase_token');
+    msg.textContent = 'Guardando...';
+    msg.style.color = '#176b87';
+
+    try {
+        const res = await fetch(SUPABASE_URL + '/rest/v1/productos', {
+            method: 'POST',
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                nombre: nombre,
+                precio_venta_clp: precio,
+                stock: stock
+            })
+        });
+
+        if (res.ok) {
+            msg.textContent = 'Producto guardado.';
+            msg.style.color = 'green';
+            document.getElementById('prod-nombre').value = '';
+            document.getElementById('prod-precio').value = '';
+            document.getElementById('prod-stock').value = '';
+            cargarProductos(); 
+        } else {
+            const err = await res.json();
+            msg.textContent = 'Error: ' + err.message;
+            msg.style.color = 'red';
+        }
+    } catch (e) {
+        msg.textContent = 'Error de conexión.';
+        msg.style.color = 'red';
+    }
 }</script></body></html>
